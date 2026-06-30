@@ -6,6 +6,8 @@
 
 <img src="img/README_img/image-20260630192144846.png" alt="image-20260630192144846" style="zoom:80%;" />
 
+
+
 <img src="img/README_img/image-20260630192207889.png" alt="image-20260630192207889" style="zoom:80%;" />
 
 # 复现
@@ -87,13 +89,9 @@ datasets:
 
 ## 测试
 
-下载预训练权重，放到pretrain_model
+下载预训练权重，放到``pretrain_model`：[Google Drive](https://drive.google.com/drive/folders/1VrFxqox3fewPUmP-i0a9rJw3qCmT1Vnp?usp=sharing)、[百度网盘](https://pan.baidu.com/s/1AEieYLl5i-afkr-bF47a_g?pwd=ja58)
 
-- [Google Drive](https://drive.google.com/drive/folders/1VrFxqox3fewPUmP-i0a9rJw3qCmT1Vnp?usp=sharing)、[百度网盘](https://pan.baidu.com/s/1AEieYLl5i-afkr-bF47a_g?pwd=ja58)
-
-原始测试流程：
-
-- 原脚本里的 `--data` 枚举没有区分 `LOL-v1`、`LOL-v2-syn`、`LOL-v2-real`，并且默认按 `pretrain_model/<data>.pth` 找权重；如果继续用原脚本，需要同时修改 `eval.py`、`metrics_score.py` 和数据集枚举。
+原始测试流程：原脚本里的 `--data` 枚举没有区分 `LOL-v1`、`LOL-v2-syn`、`LOL-v2-real`，并且默认按 `pretrain_model/<data>.pth` 找权重；如果继续用原脚本，需要同时修改 `eval.py`、`metrics_score.py` 和数据集枚举。
 
 ```
 # 可视化实验：输出增强图
@@ -102,7 +100,7 @@ python eval.py --data CSD
 python metrics_score.py --data CSD
 ```
 
-`test_lol.py`：同时完成推理、保存增强图、按同名 GT 计算 PSNR/SSIM，并把每张图和平均指标写入 `metrics.csv`。
+新建`test_lol.py`：同时完成推理、保存增强图、按同名 GT 计算 PSNR/SSIM，并把每张图和平均指标写入 `metrics.csv`。
 
 **下载的 BioIR 预训练权重**：放在`BioIR/Single_Composite/pretrained_models/`
 
@@ -116,8 +114,6 @@ python test_lol.py --opt options/LOL-v2-syn.yml --weights experiments/BioIR-LOLv
 # LOLv2-real
 python test_lol.py --opt options/LOL-v2-real.yml --weights experiments/BioIR-LOLv2-real/models/net_g_latest.pth
 ```
-
-
 
 
 
