@@ -8,8 +8,8 @@ datasets:
   train:
     name: LOLv2-real-train
     type: PairedImageDataset
-    dataroot_gt: ./datasets/LOLv2-real/train/high
-    dataroot_lq: ./datasets/LOLv2-real/train/low
+    dataroot_gt: ./datasets/LOL-v2/Real_captured/Train/Normal
+    dataroot_lq: ./datasets/LOL-v2/Real_captured/Train/Low
     filename_tmpl: '{}'
     io_backend:
       type: disk
@@ -27,8 +27,8 @@ datasets:
   val:
     name: LOLv2-real-test
     type: PairedImageDataset
-    dataroot_gt: ./datasets/LOLv2-real/test/high
-    dataroot_lq: ./datasets/LOLv2-real/test/low
+    dataroot_gt: ./datasets/LOL-v2/Real_captured/Test/Normal
+    dataroot_lq: ./datasets/LOL-v2/Real_captured/Test/Low
     filename_tmpl: '{}'
     io_backend:
       type: disk
