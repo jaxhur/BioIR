@@ -40,7 +40,9 @@ datasets:
     # 每张 GPU 用多少个 dataloader worker 读取数据
     num_worker_per_gpu: 8
     # 每张 GPU 的 batch size
-    batch_size_per_gpu: 32
+    # 32貌似过大了，使用3080ti 12g会爆显存
+    # batchsize=8,patch=128才差不多
+    batch_size_per_gpu: 8
     # 数据集重复放大倍数。1 表示不额外重复。小数据集有时会设大一点，但通常先保持 1。
     dataset_enlarge_ratio: 1
     # ~ 在 YAML 里表示空值 None。这里表示不用额外 prefetch 模式。
@@ -100,7 +102,8 @@ train:
     eta_min: !!float 1e-7
 
   # 总训练迭代数：不是 epoch 数。训练脚本会根据数据集大小和 batch size 自动换算 epoch
-  total_iter: 300000
+  # total_iter=300000太大了，3080ti要训练两天
+  total_iter: 150000
   warmup_iter: -1
 
   # 像素级 L1 损失：约束增强图和 GT 在 RGB 像素上接近

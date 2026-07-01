@@ -21,17 +21,25 @@
 配置conda环境：
 
 ```
-conda create -n bioir python=3.9
+conda remove -n bioir --all -y
+conda create -n bioir python=3.9 -y 
 conda activate bioir
 
 # 安装依赖
-conda install pytorch=2.4.0 torchvision pytorch-cuda=12.4 -c pytorch -c nvidia
+conda install pytorch=2.4.0 torchvision pytorch-cuda=12.4 -c pytorch -c nvidia -y
 pip install opencv-python lmdb tqdm einops scipy scikit-image tensorboard natsort pyiqa joblib lpips scikit-learn pandas
 
 # 安装basicsr
-cd Single_Composite
+git clone https://github.com/jaxhur/BioIR.git
+cd BioIR/Single_Composite
+# 把 setuptools 降到 64 以下，并确保有 wheel。原因是你当前的新版 setuptools/pip 会用“隔离构建环境”，那个临时环境里看不到你已经安装好的 torch，所以报 No module named 'torch'。
+python -m pip install "setuptools<64" wheel
 python setup.py develop --no_cuda_ext
 ```
+
+如果不降级新版 setuptools/pip 会用“隔离构建环境”，那个临时环境里看不到你已经安装好的 torch，所以报 No module named 'torch'。
+
+<img src="img/README_img/image-20260701190233606.png" alt="image-20260701190233606" style="zoom:67%;" />
 
 
 
@@ -43,15 +51,19 @@ python setup.py develop --no_cuda_ext
 
 ```
 python3 -m pip install -U gdown
+apt install -y unzip
+
+cd ./datasets
+# LOL-v1
 gdown "https://drive.google.com/uc?id=1mAN3ll5wWwt1Xz0C7uio31-NJu-50S8Z"
-gdown "https://drive.google.com/uc?id=1dzLJFz0svHXYHvAe-Tl52miChhF4BXXE"
+# LOL-v2原始
+# gdown "https://drive.google.com/uc?id=1dzLJFz0svHXYHvAe-Tl52miChhF4BXXE"
+# LOL-v2重命名
 gdown "https://drive.google.com/uc?id=1L0UnJg6gZ4Eb7It2EuNxP0L3lQNmKMaP"
 
 
-apt install -y unzip
-mkdir -p Single_Composite/datasets
-unzip LOL-v1.zip -d Single_Composite/datasets
-unzip LOL-v2-renamed.zip -d Single_Composite/datasets/LOL-v2
+unzip LOL-v1.zip -d LOL-v1
+unzip LOL-v2-renamed.zip -d LOL-v2
 ```
 
 
@@ -116,8 +128,14 @@ python metrics_score.py --data CSD
 
 **下载的 BioIR 预训练权重**：放在`BioIR/Single_Composite/pretrained_models/`
 
+- 3080ti：40s完成测试
+
 ```
-cd Single_Composite
+# 下载预训练权重
+cd ../pretrained_models
+gdown "https://drive.google.com/uc?id=1yyoQOAyU9clo7cDwaT9i0Fgcr8109PDY"
+cd ../
+#cd Single_Composite
 
 # 测试下载的预训练权重示例
 python test_lol.py --opt options/LOL-v2-syn.yml --weights pretrained_models/LOL-v2-syn.pth
@@ -147,25 +165,60 @@ results_lol/<实验名>/
 python test_lol.py --opt options/LOL-v1.yml --weights experiments/BioIR-LOLv1/models/net_g_latest.pth --test_y_channel
 ```
 
+> 问题：貌似是安装的是CPU版本的torch
+>
+> ```
+>   File "/workspace/BioIR/Single_Composite/basicsr/models/__init__.py", line 4, in <module>
+>     from basicsr.utils import get_root_logger, scandir
+>   File "/workspace/BioIR/Single_Composite/basicsr/utils/__init__.py", line 2, in <module>
+>     from .img_util import crop_border, imfrombytes, img2tensor, imwrite, tensor2img, padding, padding_DP, imfrombytesDP
+>   File "/workspace/BioIR/Single_Composite/basicsr/utils/img_util.py", line 6, in <module>
+>     from torchvision.utils import make_grid
+>   File "/venv/bioir/lib/python3.9/site-packages/torchvision/__init__.py", line 10, in <module>
+>     from torchvision import _meta_registrations, datasets, io, models, ops, transforms, utils  # usort:skip
+>   File "/venv/bioir/lib/python3.9/site-packages/torchvision/_meta_registrations.py", line 164, in <module>
+>     def meta_nms(dets, scores, iou_threshold):
+>   File "/venv/bioir/lib/python3.9/site-packages/torch/library.py", line 654, in register
+>     use_lib._register_fake(op_name, func, _stacklevel=stacklevel + 1)
+>   File "/venv/bioir/lib/python3.9/site-packages/torch/library.py", line 154, in _register_fake
+>     handle = entry.abstract_impl.register(func_to_register, source)
+>   File "/venv/bioir/lib/python3.9/site-packages/torch/_library/abstract_impl.py", line 31, in register
+>     if torch._C._dispatch_has_kernel_for_dispatch_key(self.qualname, "Meta"):
+> RuntimeError: operator torchvision::nms does not exist
+> 
+> ```
+>
+> 1
+>
+> ```
+> python -c "import torch; print(torch.__version__, torch.version.cuda, torch.cuda.is_available())"
+> ```
+>
+> 
 
 
 
+## 测试结果
+
+LOLv2-syn
+
+- Average：PSNR=26.217035，SSIM=0.940082
 
 
 
 ## 训练
 
-**训练**：
+**训练**：不能用
 
 ```
 cd Single_Composite
 
-python basicsr/train.py -opt options/LOL-v2-syn.yml
 python basicsr/train.py -opt options/LOL-v1.yml
 python basicsr/train.py -opt options/LOL-v2-real.yml
+python basicsr/train.py -opt options/LOL-v2-syn.yml
 ```
 
-原始 README 也可以用 `torchrun`。它是 PyTorch 分布式启动器，即使只有 1 张 GPU，也按“单进程分布式”方式跑。普通单卡实验不需要优先用它；原生 Windows 上还可能因为 `nccl` 分布式后端不可用而报错。
+原始 README用 `torchrun`。它是 PyTorch 分布式启动器，即使只有 1 张 GPU，也按“单进程分布式”方式跑。普通单卡实验不需要优先用它；原生 Windows 上还可能因为 `nccl` 分布式后端不可用而报错。
 
 ```
 # win
@@ -178,6 +231,8 @@ sh train.sh options/LOL-v1.yml
 sh train.sh options/LOL-v2-syn.yml
 sh train.sh options/LOL-v2-real.yml
 ```
+
+
 
 **周期性输出评价指标、保存模型权重和断点状态**
 
@@ -203,6 +258,85 @@ Single_Composite\experiments\BioIR-LOLv1\models\net_g_1000.pth
 Single_Composite\experiments\BioIR-LOLv1\models\net_g_latest.pth
 Single_Composite\experiments\BioIR-LOLv1\training_states\1000.state
 ```
+
+
+
+
+
+## LOLv1
+
+batchsize=32使用3080ti 12g会爆显存，batchsize=8、patch=128才差不多😅
+
+我靠要，3080ti要训练2天😅
+
+- `epoch: 13`：当前第 13 个 epoch，但这个项目主要按 `iter` 控制训练，不是按 epoch 结束。
+- `iter: 800`：全局训练步数，现在第 800 步。
+  - total_iter=300000太大了，一般15万、10万差不多
+  - 我先改成150000，如果效果不行，根据权重继续训练到300000，但是学习率采用退火，不一定一样
+- `lr`：学习率，现在是 `1e-3`。
+- `eta`：预计剩余训练时间。
+- `time (data): 0.500 (0.002)`：每步约 0.5 秒，其中读数据只花 0.002 秒，说明主要时间在模型计算。
+- `l_pix`：像素级 L1 loss。
+- `l_fft`：频域 FFT loss。
+
+```
+2026-07-01 13:44:24,487 INFO: [BioIR..][epoch:  9, iter:     600, lr:(1.000e-03,)] [eta: 2 days, 1:17:14, time (data): 0.400 (0.001)] l_pix: 2.5254e-01 l_fft: 2.0704e-01 
+2026-07-01 13:45:22,187 INFO: [BioIR..][epoch: 11, iter:     700, lr:(1.000e-03,)] [eta: 2 days, 1:05:07, time (data): 0.500 (0.002)] l_pix: 1.4189e-01 l_fft: 2.2359e-01 
+2026-07-01 13:46:18,987 INFO: [BioIR..][epoch: 13, iter:     800, lr:(1.000e-03,)] [eta: 2 days, 0:50:11, time (data): 0.500 (0.002)] l_pix: 1.1954e-01 l_fft: 1.4908e-01 
+2026-07-01 13:47:16,387 INFO: [BioIR..][epoch: 14, iter:     900, lr:(1.000e-03,)] [eta: 2 days, 0:41:41, time (data): 0.400 (0.002)] l_pix: 1.0878e-01 l_fft: 2.0784e-01 
+2026-07-01 13:48:17,587 INFO: [BioIR..][epoch: 16, iter:   1,000, lr:(1.000e-03,)] [eta: 2 days, 0:53:36, time (data): 0.500 (0.002)] l_pix: 1.1841e-01 l_fft: 1.5606e-01 
+```
+
+报错：代码把“单卡非分布式验证”错误地转成了“分布式验证”，但你没有用分布式方式启动训练。
+
+```
+2026-07-01 13:44:24,487 INFO: [BioIR..][epoch:  9, iter:     600, lr:(1.000e-03,)] [eta: 2 days, 1:17:14, time (data): 0.400 (0.001)] l_pix: 2.5254e-01 l_fft: 2.0704e-01 
+2026-07-01 13:45:22,187 INFO: [BioIR..][epoch: 11, iter:     700, lr:(1.000e-03,)] [eta: 2 days, 1:05:07, time (data): 0.500 (0.002)] l_pix: 1.4189e-01 l_fft: 2.2359e-01 
+2026-07-01 13:46:18,987 INFO: [BioIR..][epoch: 13, iter:     800, lr:(1.000e-03,)] [eta: 2 days, 0:50:11, time (data): 0.500 (0.002)] l_pix: 1.1954e-01 l_fft: 1.4908e-01 
+2026-07-01 13:47:16,387 INFO: [BioIR..][epoch: 14, iter:     900, lr:(1.000e-03,)] [eta: 2 days, 0:41:41, time (data): 0.400 (0.002)] l_pix: 1.0878e-01 l_fft: 2.0784e-01 
+2026-07-01 13:48:17,587 INFO: [BioIR..][epoch: 16, iter:   1,000, lr:(1.000e-03,)] [eta: 2 days, 0:53:36, time (data): 0.500 (0.002)] l_pix: 1.1841e-01 l_fft: 1.5606e-01 
+2026-07-01 13:48:17,587 INFO: Saving models and training states.
+2026-07-01 13:48:17,800 WARNING: nondist_validation is not implemented. Run dist_validation.
+Test 1: 100%|██████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████| 15/15 [00:18<00:00,  1.21s/image]
+Traceback (most recent call last):
+  File "/workspace/BioIR/Single_Composite/basicsr/train.py", line 300, in <module>
+    main()
+  File "/workspace/BioIR/Single_Composite/basicsr/train.py", line 265, in main
+    model.validation(val_loader, current_iter, tb_logger,
+  File "/workspace/BioIR/Single_Composite/basicsr/models/base_model.py", line 51, in validation
+    return self.nondist_validation(dataloader, current_iter, tb_logger,
+  File "/workspace/BioIR/Single_Composite/basicsr/models/image_restoration_model.py", line 441, in nondist_validation
+    self.dist_validation(*args, **kwargs)
+  File "/workspace/BioIR/Single_Composite/basicsr/models/image_restoration_model.py", line 421, in dist_validation
+    torch.distributed.reduce(metrics, dst=0)
+  File "/venv/bioir/lib/python3.9/site-packages/torch/distributed/c10d_logger.py", line 79, in wrapper
+    return func(*args, **kwargs)
+  File "/venv/bioir/lib/python3.9/site-packages/torch/distributed/distributed_c10d.py", line 2395, in reduce
+    default_pg = _get_default_group()
+  File "/venv/bioir/lib/python3.9/site-packages/torch/distributed/distributed_c10d.py", line 1025, in _get_default_group
+    raise ValueError(
+ValueError: Default process group has not been initialized, please make sure to call init_process_group.
+```
+
+解决方案
+
+```
+# 使用torchrun
+cd /workspace/BioIR/Single_Composite
+torchrun --nproc_per_node=1 --master_port=4322 basicsr/train.py -opt options/LOL-v1.yml --launcher pytorch
+# 或者使用train.sh
+sh train.sh options/LOL-v1.yml
+```
+
+
+
+## LOLv2-real
+
+
+
+## LOLv2-syn
+
+
 
 
 
