@@ -10,6 +10,8 @@
 
 <img src="img/README_img/image-20260630192207889.png" alt="image-20260630192207889" style="zoom:80%;" />
 
+
+
 # 复现
 
 只复现Single_Composite中单一退化的LOLv2-syn，其他的复合退化、All-in-one没有关注
@@ -329,6 +331,24 @@ sh train.sh options/LOL-v1.yml
 ```
 
 
+
+500个epoch已经算大的吗？他这个怎么要5000个epoch
+
+```
+LOL-v1：
+训练集图片数：485
+batch size：8
+每个 epoch ≈ ceil(485 / 8) = 61 iter
+所以：
+300000 iter ≈ 4920 epoch
+150000 iter ≈ 2460 epoch
+100000 iter ≈ 1640 epoch
+60000 iter  ≈ 984 epoch
+```
+
+
+
+加上tensorboard，查看情况
 
 ## LOLv2-real
 

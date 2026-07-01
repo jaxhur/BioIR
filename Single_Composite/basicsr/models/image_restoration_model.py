@@ -269,6 +269,7 @@ class ImageRestorationModel(BaseModel):
             l_total += l_fft
             loss_dict['l_fft'] = l_fft
 
+        loss_dict['l_total'] = l_total
         l_total = l_total + 0. * sum(p.sum() for p in self.net_g.parameters())
 
         l_total = l_total

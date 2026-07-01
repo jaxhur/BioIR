@@ -28,6 +28,10 @@ class MessageLogger():
         self.start_time = time.time()
         self.logger = get_root_logger()
 
+    def _use_tensorboard(self):
+        return (self.use_tb_logger and self.tb_logger is not None
+                and 'debug' not in self.exp_name)
+
     @master_only
     def __call__(self, log_vars):
         """Format logging message.
@@ -52,6 +56,9 @@ class MessageLogger():
         for v in lrs:
             message += f'{v:.3e},'
         message += ')] '
+        if self._use_tensorboard():
+            for i, lr in enumerate(lrs):
+                self.tb_logger.add_scalar(f'train/lr_g_{i}', lr, current_iter)
 
         # time and estimated time
         if 'time' in log_vars.keys():
@@ -64,19 +71,19 @@ class MessageLogger():
             eta_str = str(datetime.timedelta(seconds=int(eta_sec)))
             message += f'[eta: {eta_str}, '
             message += f'time (data): {iter_time:.3f} ({data_time:.3f})] '
+            if self._use_tensorboard():
+                self.tb_logger.add_scalar('time/iter', iter_time, current_iter)
+                self.tb_logger.add_scalar('time/data', data_time, current_iter)
 
         # other items, especially losses
         for k, v in log_vars.items():
             message += f'{k}: {v:.4e} '
             # tensorboard logger
-            if self.use_tb_logger and 'debug' not in self.exp_name:
-                normed_step = 10000 * (current_iter / total_iter)
-                normed_step = int(normed_step)
-
+            if self._use_tensorboard():
                 if k.startswith('l_'):
-                    self.tb_logger.add_scalar(f'losses/{k}', v, normed_step)
+                    self.tb_logger.add_scalar(f'losses/{k}', v, current_iter)
                 elif k.startswith('m_'):
-                    self.tb_logger.add_scalar(f'metrics/{k}', v, normed_step)
+                    self.tb_logger.add_scalar(f'metrics/{k}', v, current_iter)
                 else:
                     assert 1 == 0
                 # else:
