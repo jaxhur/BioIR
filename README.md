@@ -45,11 +45,13 @@ python setup.py develop --no_cuda_ext
 python3 -m pip install -U gdown
 gdown "https://drive.google.com/uc?id=1mAN3ll5wWwt1Xz0C7uio31-NJu-50S8Z"
 gdown "https://drive.google.com/uc?id=1dzLJFz0svHXYHvAe-Tl52miChhF4BXXE"
+gdown "https://drive.google.com/uc?id=1L0UnJg6gZ4Eb7It2EuNxP0L3lQNmKMaP"
+
 
 apt install -y unzip
 mkdir -p Single_Composite/datasets
 unzip LOL-v1.zip -d Single_Composite/datasets
-unzip LOL-v2.zip -d Single_Composite/datasets
+unzip LOL-v2-renamed.zip -d Single_Composite/datasets/LOL-v2
 ```
 
 
