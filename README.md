@@ -1,3 +1,9 @@
+TODO
+
+- lolv2-real同一对图像不同名
+- 解释一下train.sh，能不能使用一个命令即可
+- 
+
 # 论文原始结果
 
 原始仓库：https://github.com/c-yn/BioIR
