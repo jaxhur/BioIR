@@ -348,7 +348,42 @@ batch size：8
 
 
 
-加上tensorboard，查看情况
+加上tensorboard，查看情况：修改了部分代码
+
+- TensorBoard 横轴现在用 **真实 iter**，不是原来归一化后的 `0-10000` step。
+- 会记录：
+  - `losses/l_pix`
+  - `losses/l_fft`
+  - `losses/l_total`
+  - `train/lr_g_0`
+  - `time/iter`
+  - `time/data`
+- TensorBoard 日志目录统一到 `Single_Composite/tb_logger/<实验名>`。
+- 加了一个小测试验证 TensorBoard step 和学习率/耗时记录行为。
+- `print_freq` 是 `100`，所以大约每 100 iter 写一次曲线
+
+```
+tensorboard --logdir tb_logger --port 6006
+http://localhost:6006
+```
+
+
+
+服务器上启动
+
+```
+# 服务器上启动
+# 启动 TensorBoard 服务，读取 tb_logger 目录里的训练日志，让 TensorBoard 监听服务器所有网卡地址，服务端口是 6006
+tensorboard --logdir tb_logger --host 0.0.0.0 --port 6006
+
+# 本地电脑开 SSH 端口转发
+# 把你本地电脑的 6006 端口，转发到远程服务器的 127.0.0.1:6006
+ssh -L 6006:127.0.0.1:6006 用户名@服务器IP
+# 本地浏览器
+http://localhost:6006
+```
+
+
 
 ## LOLv2-real
 
