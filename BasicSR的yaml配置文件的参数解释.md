@@ -24,8 +24,8 @@ datasets:
     # 数据集类名：对应 basicsr/data/paired_image_dataset.py，成对图像数据集：低光图 lq 和正常曝光图 gt 一一对应。
     type: PairedImageDataset
     # 训练 GT 图和低光输入图路径
-    dataroot_gt: ./datasets/LOLv1/train/high
-    dataroot_lq: ./datasets/LOLv1/train/low
+    dataroot_gt: ./datasets/LOL-v1/our485/high
+    dataroot_lq: ./datasets/LOL-v1/our485/low
     # 文件名模板。'{}' 表示低光图和 GT 图文件名一样
     filename_tmpl: '{}'
     # 从普通磁盘文件夹读取图片。不是 LMDB 数据库。
@@ -53,8 +53,8 @@ datasets:
   val:
     name: LOLv1-test
     type: PairedImageDataset
-    dataroot_gt: ./datasets/LOLv1/test/high
-    dataroot_lq: ./datasets/LOLv1/test/low
+    dataroot_gt: ./datasets/LOL-v1/eval15/high
+    dataroot_lq: ./datasets/LOL-v1/eval15/low
     filename_tmpl: '{}'
     io_backend:
       type: disk
