@@ -1,3 +1,7 @@
+todo
+
+- tensorboard：训练轮次、学习率、总损失、分损失、每次测试的PSNR和SSIM
+
 # 论文原始结果
 
 原始仓库：https://github.com/c-yn/BioIR
@@ -28,7 +32,8 @@ conda create -n bioir python=3.9 -y
 conda activate bioir
 
 # 安装依赖
-conda install pytorch=2.4.0 torchvision pytorch-cuda=12.4 -c pytorch -c nvidia -y
+# conda install pytorch=2.4.0 torchvision pytorch-cuda=12.4 -c pytorch -c nvidia -y
+pip install --no-cache-dir torch==2.4.0 torchvision==0.19.0 torchaudio==2.4.0 --index-url https://download.pytorch.org/whl/cu124
 pip install opencv-python lmdb tqdm einops scipy scikit-image tensorboard natsort pyiqa joblib lpips scikit-learn pandas
 
 # 安装basicsr
@@ -170,22 +175,22 @@ python test_lol.py --opt options/LOL-v1.yml --weights experiments/BioIR-LOLv1/mo
 > 问题：貌似是安装的是CPU版本的torch
 >
 > ```
->   File "/workspace/BioIR/Single_Composite/basicsr/models/__init__.py", line 4, in <module>
->     from basicsr.utils import get_root_logger, scandir
->   File "/workspace/BioIR/Single_Composite/basicsr/utils/__init__.py", line 2, in <module>
->     from .img_util import crop_border, imfrombytes, img2tensor, imwrite, tensor2img, padding, padding_DP, imfrombytesDP
->   File "/workspace/BioIR/Single_Composite/basicsr/utils/img_util.py", line 6, in <module>
->     from torchvision.utils import make_grid
->   File "/venv/bioir/lib/python3.9/site-packages/torchvision/__init__.py", line 10, in <module>
->     from torchvision import _meta_registrations, datasets, io, models, ops, transforms, utils  # usort:skip
->   File "/venv/bioir/lib/python3.9/site-packages/torchvision/_meta_registrations.py", line 164, in <module>
->     def meta_nms(dets, scores, iou_threshold):
->   File "/venv/bioir/lib/python3.9/site-packages/torch/library.py", line 654, in register
->     use_lib._register_fake(op_name, func, _stacklevel=stacklevel + 1)
->   File "/venv/bioir/lib/python3.9/site-packages/torch/library.py", line 154, in _register_fake
->     handle = entry.abstract_impl.register(func_to_register, source)
->   File "/venv/bioir/lib/python3.9/site-packages/torch/_library/abstract_impl.py", line 31, in register
->     if torch._C._dispatch_has_kernel_for_dispatch_key(self.qualname, "Meta"):
+> File "/workspace/BioIR/Single_Composite/basicsr/models/__init__.py", line 4, in <module>
+>  from basicsr.utils import get_root_logger, scandir
+> File "/workspace/BioIR/Single_Composite/basicsr/utils/__init__.py", line 2, in <module>
+>  from .img_util import crop_border, imfrombytes, img2tensor, imwrite, tensor2img, padding, padding_DP, imfrombytesDP
+> File "/workspace/BioIR/Single_Composite/basicsr/utils/img_util.py", line 6, in <module>
+>  from torchvision.utils import make_grid
+> File "/venv/bioir/lib/python3.9/site-packages/torchvision/__init__.py", line 10, in <module>
+>  from torchvision import _meta_registrations, datasets, io, models, ops, transforms, utils  # usort:skip
+> File "/venv/bioir/lib/python3.9/site-packages/torchvision/_meta_registrations.py", line 164, in <module>
+>  def meta_nms(dets, scores, iou_threshold):
+> File "/venv/bioir/lib/python3.9/site-packages/torch/library.py", line 654, in register
+>  use_lib._register_fake(op_name, func, _stacklevel=stacklevel + 1)
+> File "/venv/bioir/lib/python3.9/site-packages/torch/library.py", line 154, in _register_fake
+>  handle = entry.abstract_impl.register(func_to_register, source)
+> File "/venv/bioir/lib/python3.9/site-packages/torch/_library/abstract_impl.py", line 31, in register
+>  if torch._C._dispatch_has_kernel_for_dispatch_key(self.qualname, "Meta"):
 > RuntimeError: operator torchvision::nms does not exist
 > 
 > ```
@@ -194,6 +199,7 @@ python test_lol.py --opt options/LOL-v1.yml --weights experiments/BioIR-LOLv1/mo
 >
 > ```
 > python -c "import torch; print(torch.__version__, torch.version.cuda, torch.cuda.is_available())"
+> pip install --no-cache-dir torch==2.4.0 torchvision==0.19.0 torchaudio==2.4.0 --index-url https://download.pytorch.org/whl/cu124
 > ```
 >
 > 
@@ -369,21 +375,63 @@ http://localhost:6006
 
 
 
-服务器上启动
+流程：
+
+- 服务器上启动TensorBoard：tensorboard --logdir ./BioIR/Single_Composite/tb_logger/BioIR-LOLv1 --host 0.0.0.0 --port 6007
+
+  - 要注意这里的路径
+  - 读取 tb_logger 目录里的训练日志，让 TensorBoard 监听服务器所有网卡地址，服务端口是 6007
+
+- vscode开启端口转发：或者手动转发ssh -L 6007:127.0.0.1:6007 root@服务器IP -p SSH端口
+
+  <img src="img/README_img/image-20260702111626706.png" alt="image-20260702111626706" style="zoom: 80%;" />
+
+- 本地浏览器：http://localhost:6007
+
+
+
+### 训练1：patch_size=128\total-iter=15万\t_max=30万
+
+训练：4090 24G 81TFLOPS
+
+- 3个半小时、占用7G显存、78%的GPU占用率
+- batch_size=8
+- patch_size=128
+- total-iter=15万
+- t_max=30万：和total-iter=15万不匹配，导致学习率还在退火中段，不算真正收敛
+
+<img src="img/README_img/image-20260702145849632.png" alt="image-20260702145849632" style="zoom:80%;" />
+
+<img src="img/README_img/image-20260702145920457.png" alt="image-20260702145920457" style="zoom:80%;" />
+
+测试：怎么这么低😅，PSNR很低，SSIM一般的程度
+
+- Average PSNR：22.327381 dB
+- Average SSIM: 0.847639
 
 ```
-# 服务器上启动
-# 启动 TensorBoard 服务，读取 tb_logger 目录里的训练日志，让 TensorBoard 监听服务器所有网卡地址，服务端口是 6006
-tensorboard --logdir tb_logger --host 0.0.0.0 --port 6006
-
-# 本地电脑开 SSH 端口转发
-# 把你本地电脑的 6006 端口，转发到远程服务器的 127.0.0.1:6006
-ssh -L 6006:127.0.0.1:6006 用户名@服务器IP
-# 本地浏览器
-http://localhost:6006
+python test_lol.py --opt ./options/LOL-v1.yml --weights ./pretrained_models/net_g_latest.pth --save_comparison
 ```
 
+> YY的参数设置
+>
+> - 训练轮数：500 epochs
+> - 训练集：混合 `LOL-v1 + LOL-v2 Real`，这个有点乱搞了吧🤔，不能混起来训练吧
+> - batch size：4
+> - patch size：256 x 256
+>
+> 训练次数的问题：
+>
+> - `epoch` 是“把训练集完整跑一遍”。
+> - `iteration/iter` 是“跑一个 batch，并更新一次参数”。
+> - 每个 epoch 的 iter 数 = ceil(训练图片对数 / batch_size)，总 iter 数 = epoch 数 * 每个 epoch 的 iter 数
+> - BioIR的LOLv1中，485 对图片，batch_size= 8，total_iter=150000；每个 epoch = ceil(485 / 8) = 61 iter；150000 iter ≈ 150000 / 61 ≈ 2460 epoch；看起来是“两千多个 epoch”，但其实只是因为 LOL-v1 太小，一个 epoch 才 61 次参数更新。
+> - YY的epochs=500，batch_size= 4，LOL-v1+LOL-v2-real合计1174 对；每个 epoch = ceil(1174 / 4) = 294 iter，500 epoch ≈ 500 * 294 = 147000 iter
+> - 总的更新参数的次数差不多，都是15万次
 
+
+
+### 训练2：patch_size=256\total-iter=15万\t_max=30万
 
 ## LOLv2-real
 
