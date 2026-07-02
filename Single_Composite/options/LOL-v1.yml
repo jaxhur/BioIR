@@ -31,7 +31,7 @@ datasets:
 
 
     # 训练时随机裁剪的 patch 大小
-    gt_size: 128
+    gt_size: 256
     # 数据增强:随机水平翻转、随机旋转
     use_flip: true 
     use_rot: true 
@@ -98,7 +98,7 @@ train:
   # 学习率调度器：余弦退火，学习率从初始值逐渐降到 eta_min
   scheduler:
     type: TrueCosineAnnealingLR
-    T_max: 300000
+    T_max: 150000
     eta_min: !!float 1e-7
 
   # 总训练迭代数：不是 epoch 数。训练脚本会根据数据集大小和 batch size 自动换算 epoch
