@@ -38,6 +38,8 @@ pip install opencv-python lmdb tqdm einops scipy scikit-image tensorboard natsor
 
 # 安装basicsr
 git clone https://github.com/jaxhur/BioIR.git
+git clone https://gitee.com/wallcaptain/BioIR.git
+
 cd BioIR/Single_Composite
 # 把 setuptools 降到 64 以下，并确保有 wheel。原因是你当前的新版 setuptools/pip 会用“隔离构建环境”，那个临时环境里看不到你已经安装好的 torch，所以报 No module named 'torch'。
 python -m pip install "setuptools<64" wheel
@@ -68,7 +70,13 @@ gdown "https://drive.google.com/uc?id=1mAN3ll5wWwt1Xz0C7uio31-NJu-50S8Z"
 # LOL-v2重命名
 gdown "https://drive.google.com/uc?id=1L0UnJg6gZ4Eb7It2EuNxP0L3lQNmKMaP"
 
+# AUtoDL
+cp /root/autodl-fs/LOL-v1.zip /root/BioIR/Single_Composite/datasets
+cp /root/autodl-fs/LOL-v2-renamed.zip /root/BioIR/Single_Composite/datasets
 
+
+# 
+cd /root/BioIR/Single_Composite/datasets
 unzip LOL-v1.zip -d LOL-v1
 unzip LOL-v2-renamed.zip -d LOL-v2
 ```
@@ -214,17 +222,9 @@ LOLv2-syn
 
 
 
+
+
 ## 训练
-
-**训练**：不能用
-
-```
-cd Single_Composite
-
-python basicsr/train.py -opt options/LOL-v1.yml
-python basicsr/train.py -opt options/LOL-v2-real.yml
-python basicsr/train.py -opt options/LOL-v2-syn.yml
-```
 
 原始 README用 `torchrun`。它是 PyTorch 分布式启动器，即使只有 1 张 GPU，也按“单进程分布式”方式跑。普通单卡实验不需要优先用它；原生 Windows 上还可能因为 `nccl` 分布式后端不可用而报错。
 
@@ -240,8 +240,6 @@ sh train.sh options/LOL-v2-syn.yml
 sh train.sh options/LOL-v2-real.yml
 ```
 
-
-
 **周期性输出评价指标、保存模型权重和断点状态**
 
 - 训练中断后，原训练脚本会自动从 `experiments/<实验名>/training_states/` 里最新的 `.state` 恢复
@@ -254,7 +252,7 @@ logger:
   save_checkpoint_freq: 1e3
 ```
 
-**保存目录**：
+**数据会保存如下目录**：
 
 ```
 Single_Composite\experiments\<实验名>\
@@ -390,7 +388,7 @@ http://localhost:6006
 
 
 
-### 训练1：patch_size=128\total-iter=15万\t_max=30万
+### 训练1：bs=8\ps=128\total-iter=15万\t_max=30万
 
 训练：4090 24G 81TFLOPS
 
@@ -399,6 +397,13 @@ http://localhost:6006
 - patch_size=128
 - total-iter=15万
 - t_max=30万：和total-iter=15万不匹配，导致学习率还在退火中段，不算真正收敛
+
+```
+sh train.sh options/LOL-v1.yml
+tensorboard --logdir tb_logger --port 6006
+```
+
+
 
 <img src="img/README_img/image-20260702145849632.png" alt="image-20260702145849632" style="zoom:80%;" />
 
@@ -431,19 +436,94 @@ python test_lol.py --opt ./options/LOL-v1.yml --weights ./pretrained_models/net_
 
 
 
-### 训练2：patch_size=256\total-iter=15万\t_max=30万
+### 训练2：bs=4\ps=256\total-iter=15万\t_max=30万
+
+bs=8\patch_size=256：爆显存
+
+训练：4090 24G 81TFLOPS
+
+- 7个半小时、占用12G显存、97%的GPU占用率
+- batch_size=4
+- patch_size=256
+- total-iter=15万
+- t_max=15万
+
+```
+cd /root/BioIR/Single_Composite
+sh train.sh options/LOL-v1.yml
+tensorboard --logdir ./Single_Composite/tb_logger/BioIR-LOLv1 --port 6006
+```
+
+
+
+测试：PSNR中途到达过23.5、SSIM达到较好水平
+
+- Average PSNR: 22.677198 dB
+- Average SSIM: 0.855080
+
+```
+python test_lol.py --opt ./options/LOL-v1.yml --weights ./pretrained_models/net_g_latest.pth --save_comparison
+```
+
+<img src="img/README_img/image-20260703130136337.png" alt="image-20260703130136337" style="zoom: 80%;" />
+
+<img src="img/README_img/image-20260703130153828.png" alt="image-20260703130153828" style="zoom:80%;" />
+
+
+
+
 
 ## LOLv2-real
+
+训练：4090 24G 81TFLOPS
+
+- 10个小时、占用12G显存、97%的GPU占用率
+- batch_size=4
+- patch_size=256
+- total-iter=15万
+- t_max=15万
+
+```
+cd /root/BioIR/Single_Composite
+conda activate bioir
+sh train.sh options/LOL-v2-real.yml
+
+tensorboard --logdir ./Single_Composite/tb_logger/BioIR-LOLv2-real --port 6006
+```
+
+
+
+测试：PSNR中途到达过23.5、SSIM达到较好水平
+
+- Average PSNR：
+- Average SSIM：
+
+```
+python test_lol.py --opt ./options/LOL-v2.yml --weights ./pretrained_models/net_g_latest.pth --save_comparison
+```
+
+
 
 
 
 ## LOLv2-syn
 
+训练：
+
+```
+cd /root/BioIR/Single_Composite
+sh train.sh options/LOL-v2-syn.yml
+
+tensorboard --logdir ./Single_Composite/tb_logger/BioIR-LOLv2-syn --port 6006
+```
 
 
 
 
-## 消融实验
+
+```
+uIQr/t18XMD+
+```
 
 
 
