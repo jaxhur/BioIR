@@ -59,7 +59,7 @@ python setup.py develop --no_cuda_ext
 - BioIR只在LOL-v2-syn上训练，没有在LOLv1和LOLv2-real训练
 
 ```
-python3 -m pip install -U gdown
+pip install -U gdown
 apt install -y unzip
 
 cd ./datasets
@@ -491,15 +491,17 @@ sh train.sh options/LOL-v2-real.yml
 tensorboard --logdir ./Single_Composite/tb_logger/BioIR-LOLv2-real --port 6006
 ```
 
+<img src="img/README_img/image-20260712194844771.png" alt="image-20260712194844771" style="zoom:80%;" />
 
+<img src="img/README_img/image-20260712194914226.png" alt="image-20260712194914226" style="zoom:80%;" />
 
-测试：PSNR中途到达过23.5、SSIM达到较好水平
+测试：PSNR中途到达过22.05、SSIM达到0.8714😋，但是实际上不太行
 
-- Average PSNR：
-- Average SSIM：
+- Average PSNR: 20.812142 dB
+- Average SSIM: 0.857498
 
 ```
-python test_lol.py --opt ./options/LOL-v2.yml --weights ./pretrained_models/net_g_latest.pth --save_comparison
+python test_lol.py --opt ./options/LOL-v2-real.yml --weights ./pretrained_models/net_g_latest.pth --save_comparison
 ```
 
 
@@ -510,19 +512,38 @@ python test_lol.py --opt ./options/LOL-v2.yml --weights ./pretrained_models/net_
 
 训练：
 
+- 10个小时、占用12G显存
+- batch_size=4
+- patch_size=256
+- total-iter=15万
+- t_max=15万
+- 效果最好，而且fft损失也在下降
+
 ```
 cd /root/BioIR/Single_Composite
+conda activate bioir
 sh train.sh options/LOL-v2-syn.yml
 
 tensorboard --logdir ./Single_Composite/tb_logger/BioIR-LOLv2-syn --port 6006
 ```
 
+<img src="img/README_img/image-20260713234515067.png" alt="image-20260713234515067" style="zoom:80%;" />
 
+<img src="img/README_img/image-20260713234542412.png" alt="image-20260713234542412" style="zoom:80%;" />
+
+测试：
+
+- Average PSNR: 26.359385 dB
+- Average SSIM: 0.943172
+
+```
+python test_lol.py --opt ./options/LOL-v2-syn.yml --weights ./pretrained_models/net_g_latest.pth --save_comparison
+```
 
 
 
 ```
-uIQr/t18XMD+
+S1EykY8oxmsD
 ```
 
 

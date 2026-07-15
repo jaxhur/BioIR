@@ -216,6 +216,10 @@ __marimo__/
 **/pretrained_models/**
 !**/pretrained_models/
 !**/pretrained_models/.gitkeep
+# Track the released Single_Composite checkpoints while ignoring other model weights.
+!Single_Composite/pretrained_models/LOLv1.pth
+!Single_Composite/pretrained_models/LOLv2-real.pth
+!Single_Composite/pretrained_models/LOLv2-syn.pth
 **/results_lol/**
 !**/results_lol/
 !**/results_lol/.gitkeep
