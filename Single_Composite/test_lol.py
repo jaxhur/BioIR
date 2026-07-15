@@ -186,11 +186,111 @@ def infer_one(model, img_rgb, device, factor):
     return np.round(restored * 255.0).astype(np.uint8)
 
 
+def create_lpips_metric(device, network='vgg'):
+    """Create the pretrained LPIPS metric on the inference device.
+
+    Args:
+        device (torch.device): Device used for perceptual metric inference.
+        network (str): LPIPS backbone name, such as ``vgg`` or ``alex``.
+
+    Returns:
+        torch.nn.Module: An evaluation-only LPIPS metric module.
+    """
+    try:
+        import lpips
+    except ImportError as exc:
+        raise ImportError(
+            'LPIPS evaluation requires the lpips package. '
+            'Install it with: pip install lpips') from exc
+
+    metric = lpips.LPIPS(net=network).to(device).eval()
+    metric.requires_grad_(False)
+    return metric
+
+
+def calculate_lpips(restored, gt, metric, device, border=0):
+    """Calculate LPIPS for two uint8 RGB images.
+
+    LPIPS expects NCHW RGB tensors normalized to ``[-1, 1]``. The optional
+    border crop follows the PSNR/SSIM evaluation region.
+
+    Args:
+        restored (numpy.ndarray): Restored RGB image in ``[0, 255]``.
+        gt (numpy.ndarray): Ground-truth RGB image in ``[0, 255]``.
+        metric (torch.nn.Module): Pretrained LPIPS metric module.
+        device (torch.device): Device used for LPIPS inference.
+        border (int): Number of pixels cropped from every image edge.
+
+    Returns:
+        float: Perceptual distance; lower is better.
+    """
+    restored = crop_border(restored, border)
+    gt = crop_border(gt, border)
+
+    def to_lpips_tensor(image):
+        tensor = torch.from_numpy(image.astype(np.float32) / 255.0)
+        tensor = tensor.permute(2, 0, 1).unsqueeze(0).to(device)
+        return tensor.mul(2.0).sub(1.0)
+
+    restored_tensor = to_lpips_tensor(restored)
+    gt_tensor = to_lpips_tensor(gt)
+    with torch.inference_mode():
+        value = metric(restored_tensor, gt_tensor)
+    return float(value.squeeze().item())
+
+
+def analyze_model_complexity(model, input_shape=(3, 256, 256)):
+    """Count model parameters and one-forward FLOPs using ptflops.
+
+    ``ptflops`` reports multiply-accumulate operations (MACs). This function
+    uses the common paper convention ``1 MAC = 2 FLOPs`` and reports decimal
+    units (``1 M = 1e6`` and ``1 G = 1e9``).
+
+    Args:
+        model (torch.nn.Module): Loaded generator network.
+        input_shape (tuple[int, int, int]): Input shape without batch size.
+
+    Returns:
+        dict: Parameter count, FLOPs, input size, tool, and counting note.
+    """
+    try:
+        from ptflops import get_model_complexity_info
+    except ImportError as exc:
+        raise ImportError(
+            'FLOPs evaluation requires the ptflops package. '
+            'Install it with: pip install ptflops') from exc
+
+    model.eval()
+    with torch.inference_mode():
+        macs, _ = get_model_complexity_info(
+            model,
+            input_shape,
+            as_strings=False,
+            print_per_layer_stat=False,
+            verbose=False)
+
+    params = sum(parameter.numel() for parameter in model.parameters())
+    return {
+        'params_m': params / 1e6,
+        'flops_g': 2.0 * float(macs) / 1e9,
+        'input_size': f'1x{input_shape[0]}x{input_shape[1]}x{input_shape[2]}',
+        'tool': 'ptflops',
+        'note': 'ptflops MACs x 2; unsupported functional operations may be omitted',
+    }
+
+
 def write_metrics_csv(path, rows):
+    """Write per-image and average quality/complexity metrics to CSV."""
     path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
     with path.open('w', newline='', encoding='utf-8') as f:
-        writer = csv.DictWriter(f, fieldnames=['image', 'psnr', 'ssim'])
+        writer = csv.DictWriter(
+            f,
+            fieldnames=[
+                'image', 'psnr', 'ssim', 'lpips', 'params_m', 'flops_g',
+                'input_size', 'lpips_net', 'lpips_input_range',
+                'complexity_tool', 'complexity_note'
+            ])
         writer.writeheader()
         writer.writerows(rows)
 
@@ -205,6 +305,8 @@ def main():
     parser.add_argument('--factor', type=int, default=32, help='Pad images to multiples of this value.')
     parser.add_argument('--crop_border', type=int, default=0)
     parser.add_argument('--test_y_channel', action='store_true')
+    parser.add_argument('--lpips_net', default='vgg', choices=['alex', 'vgg', 'squeeze'],
+                        help='LPIPS backbone. Defaults to the project VGG convention.')
     parser.add_argument('--save_comparison', action='store_true',
                         help='Also save low/restored/GT comparison images.')
     parser.add_argument('--no_comparison', action='store_true', help=argparse.SUPPRESS)
@@ -218,6 +320,8 @@ def main():
         raise RuntimeError('CUDA was requested, but torch.cuda.is_available() is False.')
 
     model, opt = load_model(args.opt, args.weights, device)
+    lpips_metric = create_lpips_metric(device, args.lpips_net)
+    complexity = analyze_model_complexity(model, input_shape=(3, 256, 256))
     dataset_name = args.name or opt['name']
     lq_dir = Path(opt['datasets']['val']['dataroot_lq'])
     gt_dir = Path(opt['datasets']['val']['dataroot_gt'])
@@ -231,8 +335,14 @@ def main():
     rows = []
     psnr_values = []
     ssim_values = []
+    lpips_values = []
 
     print(f'Testing {dataset_name} on {len(pairs)} image pairs with {device}.')
+    print(f'Params(M): {complexity["params_m"]:.6f}')
+    print(f'FLOPs(G): {complexity["flops_g"]:.6f}')
+    print(f'Complexity input: {complexity["input_size"]}')
+    print(f'Complexity tool/口径: {complexity["tool"]}; {complexity["note"]}')
+    print(f'LPIPS: net={args.lpips_net}, RGB input range=[-1, 1], lower is better.')
     for lq_path, gt_path in tqdm(pairs, unit='image'):
         low = load_rgb(lq_path)
         gt = load_rgb(gt_path)
@@ -250,17 +360,46 @@ def main():
 
         psnr = calculate_psnr(restored, gt, args.crop_border, args.test_y_channel)
         ssim = calculate_ssim(restored, gt, args.crop_border, args.test_y_channel)
-        rows.append({'image': relative.as_posix(), 'psnr': f'{psnr:.6f}', 'ssim': f'{ssim:.6f}'})
+        lpips_value = calculate_lpips(
+            restored, gt, lpips_metric, device, args.crop_border)
+        rows.append({
+            'image': relative.as_posix(),
+            'psnr': f'{psnr:.6f}',
+            'ssim': f'{ssim:.6f}',
+            'lpips': f'{lpips_value:.6f}',
+            'params_m': '',
+            'flops_g': '',
+            'input_size': '',
+            'lpips_net': args.lpips_net,
+            'lpips_input_range': '[-1, 1]',
+            'complexity_tool': '',
+            'complexity_note': '',
+        })
         psnr_values.append(psnr)
         ssim_values.append(ssim)
+        lpips_values.append(lpips_value)
 
     avg_psnr = float(np.mean(psnr_values))
     avg_ssim = float(np.mean(ssim_values))
-    rows.append({'image': 'Average', 'psnr': f'{avg_psnr:.6f}', 'ssim': f'{avg_ssim:.6f}'})
+    avg_lpips = float(np.mean(lpips_values))
+    rows.append({
+        'image': 'Average',
+        'psnr': f'{avg_psnr:.6f}',
+        'ssim': f'{avg_ssim:.6f}',
+        'lpips': f'{avg_lpips:.6f}',
+        'params_m': f'{complexity["params_m"]:.6f}',
+        'flops_g': f'{complexity["flops_g"]:.6f}',
+        'input_size': complexity['input_size'],
+        'lpips_net': args.lpips_net,
+        'lpips_input_range': '[-1, 1]',
+        'complexity_tool': complexity['tool'],
+        'complexity_note': complexity['note'],
+    })
     write_metrics_csv(output_root / 'metrics.csv', rows)
 
     print(f'Average PSNR: {avg_psnr:.6f} dB')
     print(f'Average SSIM: {avg_ssim:.6f}')
+    print(f'Average LPIPS: {avg_lpips:.6f}')
     print(f'Restored images: {restored_dir}')
     if save_comparison_images:
         print(f'Comparison images: {comparison_dir}')

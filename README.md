@@ -1,6 +1,4 @@
-todo
 
-- tensorboard：训练轮次、学习率、总损失、分损失、每次测试的PSNR和SSIM
 
 # 论文原始结果
 
@@ -18,10 +16,6 @@ todo
 
 # 复现
 
-只复现Single_Composite中单一退化的LOLv2-syn，其他的复合退化、All-in-one没有关注
-
-
-
 ## 配置环境
 
 配置conda环境：
@@ -34,11 +28,11 @@ conda activate bioir
 # 安装依赖
 # conda install pytorch=2.4.0 torchvision pytorch-cuda=12.4 -c pytorch -c nvidia -y
 pip install --no-cache-dir torch==2.4.0 torchvision==0.19.0 torchaudio==2.4.0 --index-url https://download.pytorch.org/whl/cu124
-pip install opencv-python lmdb tqdm einops scipy scikit-image tensorboard natsort pyiqa joblib lpips scikit-learn pandas
+pip install opencv-python lmdb tqdm einops scipy scikit-image tensorboard natsort pyiqa joblib lpips ptflops scikit-learn pandas
 
-# 安装basicsr
 git clone https://github.com/jaxhur/BioIR.git
 git clone https://gitee.com/wallcaptain/BioIR.git
+# 安装basicsr
 
 cd BioIR/Single_Composite
 # 把 setuptools 降到 64 以下，并确保有 wheel。原因是你当前的新版 setuptools/pip 会用“隔离构建环境”，那个临时环境里看不到你已经安装好的 torch，所以报 No module named 'torch'。
@@ -79,6 +73,9 @@ cp /root/autodl-fs/LOL-v2-renamed.zip /root/BioIR/Single_Composite/datasets
 cd /root/BioIR/Single_Composite/datasets
 unzip LOL-v1.zip -d LOL-v1
 unzip LOL-v2-renamed.zip -d LOL-v2
+
+rm LOL-v1.zip LOL-v2-renamed.zip
+cd ../
 ```
 
 
@@ -139,7 +136,7 @@ python eval.py --data CSD
 python metrics_score.py --data CSD
 ```
 
-新建的`test_lol.py`⭐：同时完成推理、保存增强图、按同名 GT 计算 PSNR/SSIM，并把每张图和平均指标写入 `metrics.csv`。
+新建的`test_lol.py`⭐：同时完成推理、保存增强图、按同名 GT 计算 PSNR/SSIM/LPIPS，统计模型 Params(M) 和输入 `1x3x256x256` 的单次前向 FLOPs(G)，并把每张图和平均指标写入 `metrics.csv`。
 
 **下载的 BioIR 预训练权重**：放在`BioIR/Single_Composite/pretrained_models/`
 
@@ -171,7 +168,7 @@ python test_lol.py --opt options/LOL-v2-real.yml --weights experiments/BioIR-LOL
 ```text
 results_lol/<实验名>/
   restored/      # 增强后图片
-  metrics.csv    # 每张图和平均 PSNR/SSIM
+  metrics.csv    # 每张图的 PSNR/SSIM/LPIPS，以及平均指标和 Params/FLOPs
 ```
 
 默认按 RGB 三通道计算 PSNR/SSIM。如果你要和只报 Y 通道的论文口径对齐，可以加：
@@ -179,6 +176,8 @@ results_lol/<实验名>/
 ```powershell
 python test_lol.py --opt options/LOL-v1.yml --weights experiments/BioIR-LOLv1/models/net_g_latest.pth --test_y_channel
 ```
+
+LPIPS 默认使用项目原有的 VGG backbone，RGB 输入由 `[0, 255]` 归一化到 `[-1, 1]`。Params 统计生成网络的全部参数，使用十进制单位 `1 M = 1e6`。FLOPs 使用 `ptflops` 获取 MACs，再按 `1 MAC = 2 FLOPs` 换算；自定义 functional 操作可能不在 `ptflops` 统计范围内，测试终端和 CSV 会同时记录该口径。
 
 > 问题：貌似是安装的是CPU版本的torch
 >
