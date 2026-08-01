@@ -1,16 +1,14 @@
 
 
-# 论文原始结果
+# BioIR原始论文
 
 原始仓库：https://github.com/c-yn/BioIR
 
-单一退化的可视化结果：[百度网盘](https://pan.baidu.com/s/18EIFlLx-xSQRIoLc62Qt6A?pwd=x65n)
+网络结构：
 
 <img src="img/README_img/image-20260630192144846.png" alt="image-20260630192144846" style="zoom:80%;" />
 
-
-
-<img src="img/README_img/image-20260630192207889.png" alt="image-20260630192207889" style="zoom:80%;" />
+<img src="img/README_img/image-20260716224418604.png" alt="image-20260716224418604" style="zoom:67%;" />
 
 
 
@@ -127,16 +125,7 @@ datasets:
 
 下载预训练权重，放到`pretrained_models/`：[Google Drive](https://drive.google.com/drive/folders/1VrFxqox3fewPUmP-i0a9rJw3qCmT1Vnp?usp=sharing)、[百度网盘](https://pan.baidu.com/s/1AEieYLl5i-afkr-bF47a_g?pwd=ja58)
 
-**原始的测试流程**✖：原脚本里的 `--data` 枚举没有区分 `LOL-v1`、`LOL-v2-syn`、`LOL-v2-real`，并且默认按 `pretrain_model/<data>.pth` 找权重；如果继续用原脚本，需要同时修改 `eval.py`、`metrics_score.py` 和数据集枚举。因此建议直接用下面的新脚本 `test_lol.py`。
-
-```
-# 可视化实验：输出增强图
-python eval.py --data CSD
-# 定量实验：计算PSNR、SSIM
-python metrics_score.py --data CSD
-```
-
-新建的`test_lol.py`⭐：同时完成推理、保存增强图、按同名 GT 计算 PSNR/SSIM/LPIPS，统计模型 Params(M) 和输入 `1x3x256x256` 的单次前向 FLOPs(G)，并把每张图和平均指标写入 `metrics.csv`。
+`test_lol.py` 是唯一测试入口：同时完成推理、保存增强图、按同名 GT 计算 PSNR/SSIM/LPIPS，统计模型 Params(M) 和输入 `1x3x256x256` 的单次前向复杂度，并写入逐图与汇总指标。
 
 **下载的 BioIR 预训练权重**：放在`BioIR/Single_Composite/pretrained_models/`
 
@@ -156,28 +145,23 @@ python test_lol.py --opt options/LOL-v2-syn.yml --weights pretrained_models/LOL-
 
 # 测试自己训练出的权重
 # LOL-v1
-python test_lol.py --opt options/LOL-v1.yml --weights experiments/BioIR-LOLv1/models/net_g_latest.pth
+python test_lol.py --opt options/LOL-v1.yml --weights experiments/BioIR-LOLv1/models/latest_G.pth
 # LOL-v2-syn
-python test_lol.py --opt options/LOL-v2-syn.yml --weights experiments/BioIR-LOLv2-syn/models/net_g_latest.pth
+python test_lol.py --opt options/LOL-v2-syn.yml --weights experiments/BioIR-LOLv2-syn/models/latest_G.pth
 # LOL-v2-real
-python test_lol.py --opt options/LOL-v2-real.yml --weights experiments/BioIR-LOLv2-real/models/net_g_latest.pth
+python test_lol.py --opt options/LOL-v2-real.yml --weights experiments/BioIR-LOLv2-real/models/latest_G.pth
 ```
 
 输出位置：
 
 ```text
-results_lol/<实验名>/
-  restored/      # 增强后图片
-  metrics.csv    # 每张图的 PSNR/SSIM/LPIPS，以及平均指标和 Params/FLOPs
+test_result/<数据集名>/
+  enhanced/              # 增强后图片
+  per_image_metrics.csv  # 每张图的 PSNR/SSIM/LPIPS
+  metric.csv             # 全测试集平均指标和 Params/GMACs/GFLOPs
 ```
 
-默认按 RGB 三通道计算 PSNR/SSIM。如果你要和只报 Y 通道的论文口径对齐，可以加：
-
-```powershell
-python test_lol.py --opt options/LOL-v1.yml --weights experiments/BioIR-LOLv1/models/net_g_latest.pth --test_y_channel
-```
-
-LPIPS 默认使用项目原有的 VGG backbone，RGB 输入由 `[0, 255]` 归一化到 `[-1, 1]`。Params 统计生成网络的全部参数，使用十进制单位 `1 M = 1e6`。FLOPs 使用 `ptflops` 获取 MACs，再按 `1 MAC = 2 FLOPs` 换算；自定义 functional 操作可能不在 `ptflops` 统计范围内，测试终端和 CSV 会同时记录该口径。
+PSNR/SSIM 固定使用 BasicSR 的 RGB 全图口径（`crop_border=0`）；LPIPS 固定使用 AlexNet v0.1，RGB 输入归一化到 `[-1, 1]`。Params 按全部生成网络参数除以 `1e6` 统计；复杂度使用 THOP，`GMACs=MACs/1e9`、`GFLOPs=2×MACs/1e9`。
 
 > 问题：貌似是安装的是CPU版本的torch
 >
@@ -260,7 +244,7 @@ Single_Composite\experiments\<实验名>\
   
 # 示例
 Single_Composite\experiments\BioIR-LOLv1\models\net_g_1000.pth
-Single_Composite\experiments\BioIR-LOLv1\models\net_g_latest.pth
+Single_Composite\experiments\BioIR-LOLv1\models\latest_G.pth
 Single_Composite\experiments\BioIR-LOLv1\training_states\1000.state
 ```
 
@@ -414,7 +398,7 @@ tensorboard --logdir tb_logger --port 6006
 - Average SSIM: 0.847639
 
 ```
-python test_lol.py --opt ./options/LOL-v1.yml --weights ./pretrained_models/net_g_latest.pth --save_comparison
+python test_lol.py --opt ./options/LOL-v1.yml --weights ./experiments/BioIR-LOLv1/models/latest_G.pth --save_comparison
 ```
 
 > YY的参数设置
@@ -461,7 +445,9 @@ tensorboard --logdir ./Single_Composite/tb_logger/BioIR-LOLv1 --port 6006
 - Average SSIM: 0.855080
 
 ```
-python test_lol.py --opt ./options/LOL-v1.yml --weights ./pretrained_models/net_g_latest.pth --save_comparison
+python test_lol.py --opt ./options/LOL-v1.yml --weights ./experiments/BioIR-LOLv1/models/latest_G.pth --save_comparison
+
+python test_lol.py --opt ./options/LOL-v1.yml --weights ./pretrained_models/LOLv1.pth --save_comparison
 ```
 
 <img src="img/README_img/image-20260703130136337.png" alt="image-20260703130136337" style="zoom: 80%;" />
@@ -500,7 +486,10 @@ tensorboard --logdir ./Single_Composite/tb_logger/BioIR-LOLv2-real --port 6006
 - Average SSIM: 0.857498
 
 ```
-python test_lol.py --opt ./options/LOL-v2-real.yml --weights ./pretrained_models/net_g_latest.pth --save_comparison
+python test_lol.py --opt ./options/LOL-v2-real.yml --weights ./experiments/BioIR-LOLv2-real/models/latest_G.pth --save_comparison
+
+
+python test_lol.py --opt ./options/LOL-v2-real.yml --weights ./pretrained_models/LOLv2-real.pth --save_comparison
 ```
 
 
@@ -536,14 +525,14 @@ tensorboard --logdir ./Single_Composite/tb_logger/BioIR-LOLv2-syn --port 6006
 - Average SSIM: 0.943172
 
 ```
-python test_lol.py --opt ./options/LOL-v2-syn.yml --weights ./pretrained_models/net_g_latest.pth --save_comparison
+python test_lol.py --opt ./options/LOL-v2-syn.yml --weights ./experiments/BioIR-LOLv2-syn/models/latest_G.pth --save_comparison
+
+python test_lol.py --opt ./options/LOL-v2-syn.yml --weights ./pretrained_models/LOLv2-syn.pth --save_comparison
 ```
 
 
 
-```
-S1EykY8oxmsD
-```
+
 
 
 

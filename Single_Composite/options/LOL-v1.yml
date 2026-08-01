@@ -42,7 +42,7 @@ datasets:
     # 每张 GPU 的 batch size
     # 32貌似过大了，使用3080ti 12g会爆显存
     # batchsize=8,patch=128才差不多
-    batch_size_per_gpu: 8
+    batch_size_per_gpu: 4
     # 数据集重复放大倍数。1 表示不额外重复。小数据集有时会设大一点，但通常先保持 1。
     dataset_enlarge_ratio: 1
     # ~ 在 YAML 里表示空值 None。这里表示不用额外 prefetch 模式。
@@ -139,8 +139,8 @@ val:
 
 # 日志配置
 logger:
-  # 每 100 iter 打印一次训练日志
-  print_freq: 100
+  # 每 20 iter 打印一次固定格式训练日志
+  print_freq: 20
   # 每 1000 iter 保存一次
   save_checkpoint_freq: !!float 1e3
   # 启用 TensorBoard 日志：训练后可以用 tensorboard 看 loss 和指标曲线。

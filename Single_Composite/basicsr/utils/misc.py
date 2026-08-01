@@ -158,8 +158,22 @@ def check_resume(opt, resume_iter):
             basename = network.replace('network_', '')
             if opt['path'].get('ignore_resume_networks') is None or (
                     basename not in opt['path']['ignore_resume_networks']):
-                opt['path'][name] = osp.join(
-                    opt['path']['models'], f'net_{basename}_{resume_iter}.pth')
+                candidate_names = [
+                    f'{resume_iter}_{basename.upper()}.pth',
+                    f'net_{basename}_{resume_iter}.pth'
+                ]
+                candidates = [
+                    osp.join(opt['path']['models'], filename)
+                    for filename in candidate_names
+                ]
+                load_path = next(
+                    (path for path in candidates if osp.isfile(path)), None)
+                if load_path is None:
+                    raise FileNotFoundError(
+                        f'Resume state iter={resume_iter} was found, but no '
+                        f'matching {network} weight exists. Checked: '
+                        f'{candidates}')
+                opt['path'][name] = load_path
                 logger.info(f"Set {name} to {opt['path'][name]}")
 
 

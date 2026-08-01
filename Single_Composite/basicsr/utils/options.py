@@ -28,6 +28,18 @@ def ordered_yaml():
     return Loader, Dumper
 
 
+def _test_result_dataset_name(experiment_name):
+    """从实验名推断规范测试结果目录名，未知实验保留原名。"""
+    normalized_name = experiment_name.lower().replace('_', '-')
+    if 'v2-real' in normalized_name:
+        return 'LOL-v2-real'
+    if 'v2-syn' in normalized_name:
+        return 'LOL-v2-syn'
+    if 'lol' in normalized_name:
+        return 'LOL-v1'
+    return experiment_name
+
+
 def parse(opt_path, is_train=True):
     """Parse option file.
 
@@ -69,9 +81,17 @@ def parse(opt_path, is_train=True):
                                     opt['name'])
         opt['path']['experiments_root'] = experiments_root
         opt['path']['models'] = osp.join(experiments_root, 'models')
-        opt['path']['training_states'] = osp.join(experiments_root,
-                                                  'training_states')
-        opt['path']['log'] = experiments_root
+        training_state = osp.join(experiments_root, 'training_state')
+        # 同时保留旧键名，避免已有模型类访问路径时失效。
+        opt['path']['training_state'] = training_state
+        opt['path']['training_states'] = training_state
+        opt['path']['logs'] = osp.join(experiments_root, 'logs')
+        opt['path']['train_log'] = osp.join(
+            experiments_root, 'logs', 'train.log')
+        opt['path']['val_log'] = osp.join(
+            experiments_root, 'logs', 'val.log')
+        opt['path']['tb_logger'] = osp.join(experiments_root, 'tb_looger')
+        opt['path']['log'] = opt['path']['logs']
         opt['path']['visualization'] = osp.join(experiments_root,
                                                 'visualization')
 
@@ -79,13 +99,15 @@ def parse(opt_path, is_train=True):
         if 'debug' in opt['name']:
             if 'val' in opt:
                 opt['val']['val_freq'] = 8
-            opt['logger']['print_freq'] = 1
+            opt['logger']['print_freq'] = 20
             opt['logger']['save_checkpoint_freq'] = 8
     else:  # test
-        results_root = osp.join(opt['path']['root'], 'results', opt['name'])
+        dataset_name = _test_result_dataset_name(opt['name'])
+        results_root = osp.join(opt['path']['root'], 'test_result',
+                                dataset_name)
         opt['path']['results_root'] = results_root
         opt['path']['log'] = results_root
-        opt['path']['visualization'] = osp.join(results_root, 'visualization')
+        opt['path']['visualization'] = osp.join(results_root, 'enhanced')
 
     return opt
 

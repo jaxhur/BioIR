@@ -8,7 +8,7 @@ from tqdm import tqdm
 
 from basicsr.models.archs import define_network
 from basicsr.models.base_model import BaseModel
-from basicsr.utils import get_root_logger, imwrite, tensor2img
+from basicsr.utils import imwrite, tensor2img
 from basicsr.utils.dist_util import get_dist_info
 
 import random
@@ -413,13 +413,18 @@ class ImageRestorationModel(BaseModel):
 
             self.collected_metrics = collected_metrics
 
+        if not with_metrics:
+            return {}
+
         keys = []
         metrics = []
         for name, value in self.collected_metrics.items():
             keys.append(name)
             metrics.append(value)
         metrics = torch.stack(metrics, 0)
-        torch.distributed.reduce(metrics, dst=0)
+        # 单卡 launcher=none 时没有初始化进程组，不应调用 distributed.reduce。
+        if self.opt['dist']:
+            torch.distributed.reduce(metrics, dst=0)
         if self.opt['rank'] == 0:
             metrics_dict = {}
             cnt = 0
@@ -432,27 +437,24 @@ class ImageRestorationModel(BaseModel):
             for key in metrics_dict:
                 metrics_dict[key] /= cnt
 
-            self._log_validation_metric_values(current_iter, dataloader.dataset.opt['name'],
+            self._log_validation_metric_values(current_iter,
+                                               dataloader.dataset.opt['name'],
                                                tb_logger, metrics_dict)
-        return 0.
+            return metrics_dict
+        return None
 
     def nondist_validation(self, *args, **kwargs):
-        logger = get_root_logger()
-        logger.warning('nondist_validation is not implemented. Run dist_validation.')
-        self.dist_validation(*args, **kwargs)
+        """复用统一验证实现；单卡路径不会调用分布式规约。"""
+        return self.dist_validation(*args, **kwargs)
 
     def _log_validation_metric_values(self, current_iter, dataset_name,
                                       tb_logger, metric_dict):
-        log_str = f'Validation {dataset_name}, \t'
-        for metric, value in metric_dict.items():
-            log_str += f'\t # {metric}: {value:.4f}'
-        logger = get_root_logger()
-        logger.info(log_str)
-
         log_dict = OrderedDict()
-        # for name, value in loss_dict.items():
         for metric, value in metric_dict.items():
             log_dict[f'm_{metric}'] = value
+            if tb_logger is not None:
+                tb_logger.add_scalar(
+                    f'metrics/{dataset_name}/{metric}', value, current_iter)
 
         self.log_dict = log_dict
 
@@ -464,6 +466,22 @@ class ImageRestorationModel(BaseModel):
             out_dict['gt'] = self.gt.detach().cpu()
         return out_dict
 
-    def save(self, epoch, current_iter):
-        self.save_network(self.net_g, 'net_g', current_iter)
-        self.save_training_state(epoch, current_iter)
+    def save(self, epoch, current_iter, extra_state=None):
+        """保存周期权重、latest 权重和可续训状态。"""
+        if current_iter == -1:
+            self.save_network(
+                self.net_g, 'G', current_iter, save_filename='latest_G.pth')
+            return
+        self.save_network(
+            self.net_g,
+            'G',
+            current_iter,
+            save_filename=f'{current_iter}_G.pth')
+        self.save_network(
+            self.net_g, 'G', current_iter, save_filename='latest_G.pth')
+        self.save_training_state(epoch, current_iter, extra_state=extra_state)
+
+    def save_best(self):
+        """保存当前验证 PSNR 严格提升时的生成器权重。"""
+        self.save_network(
+            self.net_g, 'G', -1, save_filename='best_G.pth')

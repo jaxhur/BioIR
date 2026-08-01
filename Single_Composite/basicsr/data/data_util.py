@@ -1,11 +1,44 @@
 import cv2
 import numpy as np
+import os
 import torch
 from os import path as osp
 from torch.nn import functional as F
 
 from basicsr.data.transforms import mod_crop
 from basicsr.utils import img2tensor, scandir
+
+
+_IMAGE_EXTENSIONS = ('.bmp', '.jpeg', '.jpg', '.png', '.tif', '.tiff', '.webp')
+
+
+def _scan_image_relative_paths(folder):
+    """递归扫描图像相对路径，并过滤隐藏文件与非图像文件。
+
+    Args:
+        folder (str): 待扫描的数据目录。
+
+    Returns:
+        dict[str, str]: 规范化相对路径到原始相对路径的映射。
+    """
+    image_paths = {}
+    for root, dir_names, file_names in os.walk(folder):
+        # 避免进入 macOS 元数据目录或其他隐藏目录。
+        dir_names[:] = sorted(name for name in dir_names
+                              if not name.startswith('.'))
+        for file_name in sorted(file_names):
+            if (file_name.startswith('.')
+                    or not file_name.lower().endswith(_IMAGE_EXTENSIONS)):
+                continue
+            full_path = osp.join(root, file_name)
+            relative_path = osp.relpath(full_path, folder)
+            normalized_path = relative_path.replace('\\', '/')
+            if normalized_path in image_paths:
+                raise ValueError(
+                    f'Duplicate image relative path in {folder}: '
+                    f'{normalized_path}')
+            image_paths[normalized_path] = relative_path
+    return image_paths
 
 
 def read_img_seq(path, require_mod_crop=False, scale=1):
@@ -228,23 +261,47 @@ def paired_paths_from_folder(folders, keys, filename_tmpl):
     input_folder, gt_folder = folders
     input_key, gt_key = keys
 
-    input_paths = list(scandir(input_folder))
-    gt_paths = list(scandir(gt_folder))
+    input_paths = _scan_image_relative_paths(input_folder)
+    gt_paths = _scan_image_relative_paths(gt_folder)
+
+    if 'CDD' in gt_folder:
+        # 保留 CDD 数据集历史命名规则，同时严格确认每个目标文件存在。
+        expected_pairs = {}
+        for normalized_path, relative_path in input_paths.items():
+            basename, ext = osp.splitext(osp.basename(relative_path))
+            gt_relative_path = basename.split('_')[-1] + ext
+            gt_normalized_path = gt_relative_path.replace('\\', '/')
+            expected_pairs[normalized_path] = gt_normalized_path
+        missing_gt = sorted(
+            gt_path for gt_path in expected_pairs.values()
+            if gt_path not in gt_paths)
+        if missing_gt:
+            raise ValueError(
+                f'CDD pairing failed: {len(missing_gt)} GT image(s) are '
+                f'missing in {gt_folder}. Examples: {missing_gt[:5]}')
+    else:
+        input_keys = set(input_paths)
+        gt_keys = set(gt_paths)
+        missing_gt = sorted(input_keys - gt_keys)
+        missing_input = sorted(gt_keys - input_keys)
+        if missing_gt or missing_input:
+            raise ValueError(
+                'Strict relative-path pairing failed. '
+                f'Missing GT: {len(missing_gt)} {missing_gt[:5]}; '
+                f'missing input: {len(missing_input)} '
+                f'{missing_input[:5]}. Input folder: {input_folder}; '
+                f'GT folder: {gt_folder}')
+        expected_pairs = {path: path for path in input_keys}
 
     paths = []
-    for idx in range(len(input_paths)):
-        
-        input_path = input_paths[idx]
-        basename, ext = osp.splitext(osp.basename(input_path))
-        if 'CDD' in gt_folder:
-            gt_path = osp.join(gt_folder, basename.split('_')[-1] + ext)
-        else:
-            gt_path = osp.join(gt_folder, input_path)
-
-        input_path = osp.join(input_folder, input_path)
-        paths.append(
-            dict([(f'{input_key}_path', input_path),
-                  (f'{gt_key}_path', gt_path)]))
+    for input_normalized_path in sorted(expected_pairs):
+        gt_normalized_path = expected_pairs[input_normalized_path]
+        paths.append({
+            f'{input_key}_path': osp.join(
+                input_folder, input_paths[input_normalized_path]),
+            f'{gt_key}_path': osp.join(
+                gt_folder, gt_paths[gt_normalized_path])
+        })
     return paths
 
 

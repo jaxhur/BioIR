@@ -94,10 +94,11 @@ class BaseModel():
                     lr_scheduler.CosineAnnealingRestartCyclicLR(
                         optimizer, **train_opt['scheduler']))
         elif scheduler_type == 'TrueCosineAnnealingLR':
-            print('..', 'cosineannealingLR')
+            logger.info('Use TrueCosineAnnealingLR scheduler.')
             for optimizer in self.optimizers:
                 self.schedulers.append(
-                    torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, **train_opt['scheduler']))
+                    torch.optim.lr_scheduler.CosineAnnealingLR(
+                        optimizer, **train_opt['scheduler']))
         elif scheduler_type == 'LinearLR':
             for optimizer in self.optimizers:
                 self.schedulers.append(
@@ -191,7 +192,12 @@ class BaseModel():
         ]
 
     @master_only
-    def save_network(self, net, net_label, current_iter, param_key='params'):
+    def save_network(self,
+                     net,
+                     net_label,
+                     current_iter,
+                     param_key='params',
+                     save_filename=None):
         """Save networks.
 
         Args:
@@ -201,9 +207,10 @@ class BaseModel():
             param_key (str | list[str]): The parameter key(s) to save network.
                 Default: 'params'.
         """
-        if current_iter == -1:
-            current_iter = 'latest'
-        save_filename = f'{net_label}_{current_iter}.pth'
+        if save_filename is None:
+            if current_iter == -1:
+                current_iter = 'latest'
+            save_filename = f'{net_label}_{current_iter}.pth'
         save_path = os.path.join(self.opt['path']['models'], save_filename)
 
         net = net if isinstance(net, list) else [net]
@@ -221,7 +228,10 @@ class BaseModel():
                 state_dict[key] = param.cpu()
             save_dict[param_key_] = state_dict
 
-        torch.save(save_dict, save_path)
+        # 先写临时文件再原子替换，避免中断留下半个权重文件。
+        temporary_path = f'{save_path}.tmp'
+        torch.save(save_dict, temporary_path)
+        os.replace(temporary_path, save_path)
 
     def _print_different_keys_loading(self, crt_net, load_net, strict=True):
         """Print keys with differnet name or different size when loading models.
@@ -276,7 +286,6 @@ class BaseModel():
             load_path, map_location=lambda storage, loc: storage)
         if param_key is not None:
             load_net = load_net[param_key]
-        print(' load net keys', load_net.keys)
         # remove unnecessary 'module.'
         for k, v in deepcopy(load_net).items():
             if k.startswith('module.'):
@@ -286,7 +295,7 @@ class BaseModel():
         net.load_state_dict(load_net, strict=False)
 
     @master_only
-    def save_training_state(self, epoch, current_iter):
+    def save_training_state(self, epoch, current_iter, extra_state=None):
         """Save training states during training, which will be used for
         resuming.
 
@@ -301,6 +310,8 @@ class BaseModel():
                 'optimizers': [],
                 'schedulers': []
             }
+            if extra_state:
+                state.update(extra_state)
             for o in self.optimizers:
                 state['optimizers'].append(o.state_dict())
             for s in self.schedulers:
@@ -308,7 +319,9 @@ class BaseModel():
             save_filename = f'{current_iter}.state'
             save_path = os.path.join(self.opt['path']['training_states'],
                                      save_filename)
-            torch.save(state, save_path)
+            temporary_path = f'{save_path}.tmp'
+            torch.save(state, temporary_path)
+            os.replace(temporary_path, save_path)
 
     def resume_training(self, resume_state):
         """Reload the optimizers and schedulers for resumed training.
