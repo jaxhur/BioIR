@@ -4,7 +4,7 @@
 
 原始仓库：https://github.com/c-yn/BioIR
 
-网络结构：
+网络结构：代码中是Tiny版本
 
 <img src="img/README_img/image-20260630192144846.png" alt="image-20260630192144846" style="zoom:80%;" />
 
@@ -447,6 +447,9 @@ tensorboard --logdir ./Single_Composite/tb_logger/BioIR-LOLv1 --port 6006
 ```
 python test_lol.py --opt ./options/LOL-v1.yml --weights ./experiments/BioIR-LOLv1/models/latest_G.pth --save_comparison
 
+python test_lol.py --opt ./options/LOL-v1.yml --weights ./experiments/BioIR-LOLv1/models/best_G.pth --save_comparison
+
+
 python test_lol.py --opt ./options/LOL-v1.yml --weights ./pretrained_models/LOLv1.pth --save_comparison
 ```
 
@@ -487,6 +490,8 @@ tensorboard --logdir ./Single_Composite/tb_logger/BioIR-LOLv2-real --port 6006
 
 ```
 python test_lol.py --opt ./options/LOL-v2-real.yml --weights ./experiments/BioIR-LOLv2-real/models/latest_G.pth --save_comparison
+
+python test_lol.py --opt ./options/LOL-v2-real.yml --weights ./experiments/BioIR-LOLv2-real/models/best_G.pth --save_comparison
 
 
 python test_lol.py --opt ./options/LOL-v2-real.yml --weights ./pretrained_models/LOLv2-real.pth --save_comparison
